@@ -9,6 +9,7 @@ require 'rubygems'
 require 'curb'
 require 'json'
 require 'yaml'
+require 'meme'
 
 config = YAML::load(File.read('conf.yml'))
 
@@ -36,6 +37,7 @@ class Convore
       body["unread"]
     end
     
+    # returns all mentions => [message, topic_id]
     def mentions
       c = Curl::Easy.new("#{BASE_URL}/account/mentions.json") do |curl|
         curl.headers["User-Agent"] = AGENT
@@ -46,9 +48,10 @@ class Convore
       c.perform
       body = JSON c.body_str
       # return array of mentions
-      body['mentions'].collect! { |m| m['message']['message'].gsub("@#{BOTNAME} ", "") }
+      body['mentions'].collect! { |m| [ m['message']['message'].gsub("@#{BOTNAME} ", ""), m['topic']['id'] ] }
     end
     
+    # returns latest [message, topic_id]
     def latest_mention
       mentions.first
     end
@@ -89,19 +92,23 @@ class Bot
     return if Convore::unread == 0
     
     p "i am famouz! posting now!"
-    message = case Convore::latest_mention
-      when /love/
-        "aaaawwh, i haz love!"
-      when /cool/
-        "what's cooler than being cool? ICE COLD!"
-      when /hai/
-          "OH HAI!"
-      when /kevin/
-        "http://www.popcritics.com/wp-content/uploads/2008/07/kevin_the_office.jpg"
-      else
-        "Wait...what!?"
+    message_body, topic_id  = Convore::latest_mention
+    
+    # user types help, brings up list of available memes
+    if "help".include? message_body
+      message = ["Memes Available\n"] << Meme::GENERATORS.collect { |g| g.first }.sort.join("\n")
+    # parse mention's message
+    else
+      meme_name, message_body = message_body.split " ", 2 # assuming memename text to write
+      line_one, line_two = message_body.split ","         # if string contains comma (,) then add another line
+      begin
+        meme = Meme.new meme_name.upcase
+        message = meme.generate line_one, line_two
+      rescue Error => boom
+        message = boom.message
+      end      
     end
-    topic_id = "15300" # TODO Grab from latest_mention
+
     Convore::post_message topic_id, message
   end
   

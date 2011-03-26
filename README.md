@@ -5,10 +5,23 @@
 Make sure you have Ruby 1.8.7, [RubyGems](https://rubygems.org/pages/download), and the following gems:
 
  - **curb**
- - **json** 
+ - **json**
  - **yaml**
+ - **meme_generator**
+ - **nokogiri**
 
-## Execute
+## Execute Bot
 Add your convore's username and password in conf.yml file and then execute the Ruby script like so
 
     ruby bot.rb
+## Generating Memes in Convore
+
+List all available memes
+
+    @memebot help
+Generate inception meme
+
+    @memebot inception i am asian, really?
+Generate ORLY Owl meme
+
+    @memebot O-RLY-OWL ORLY?
