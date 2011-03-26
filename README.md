@@ -3,6 +3,7 @@
 *just mention @memebot in your topic and he'll respond, like totally*
 ## Installation and Requirements
 Make sure you have Ruby 1.8.7, [RubyGems](https://rubygems.org/pages/download), and the following gems:
+
  - **curb**
  - **json** 
  - **yaml**
