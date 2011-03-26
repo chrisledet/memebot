@@ -6,7 +6,6 @@ Make sure you have Ruby 1.8.7, [RubyGems](https://rubygems.org/pages/download), 
 
  - **curb**
  - **json**
- - **yaml**
  - **meme_generator**
  - **nokogiri**
 
