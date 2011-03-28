@@ -24,9 +24,9 @@ class Convore
 
   class << self
     
+    # returns int
     def unread
       body = JSON( get "#{BASE_URL}/account/mentions.json" )
-      # returns integer
       body["unread"]
     end
     
@@ -43,10 +43,11 @@ class Convore
     end
     
     def post_message(topic_id, message)
-      options = [
-        Curl::PostField.content("message", message),
-        Curl::PostField.content("topic_id",  topic_id),
-      ]
+      options = 
+        [
+          Curl::PostField.content("message", message),
+          Curl::PostField.content("topic_id",  topic_id),
+        ]
       
       post("#{BASE_URL}/topics/#{topic_id}/messages/create.json", options)
     end
@@ -80,9 +81,10 @@ end
 class Bot
   # pings Convore for latest messages
   TIMER = 5 #secs
+  NO_MEME_IMAGE = "http://i.imgur.com/huDHF.jpg"
   
   def initialize
-    p "I don't listen but when I do, I post on convore." # intro needs work
+    log "Started. I don't listen but when I do, I post on convore." # intro needs work
     while true
       process
       sleep TIMER
@@ -95,26 +97,53 @@ class Bot
     
     return if Convore::unread == 0
     
-    p "i am famouz! posting now!"
     message_body, topic_id  = Convore::latest_mention
+    log "Unread mentions found in Topic #{topic_id}"
     
-    # user types help, brings up list of available memes
-    if "help".include? message_body
-      message = ["Memes Available\n"] << Meme::GENERATORS.collect { |g| g.first }.sort.join("\n")
-    # parse mention's message
-    else
-      meme_name, message_body = message_body.split " ", 2 # assuming memename text to write
-      line_one, line_two = message_body.split ","         # if string contains comma (,) then add another line
+    Thread.new {
       begin
-        meme = Meme.new meme_name.upcase
-        message = meme.generate line_one, line_two
-      rescue Error => boom
-        message = boom.message
-        p boom.inspect
-      end      
-    end
+        # if user types help, list all available memes
+        if "help".include? message_body
+          log "Listing all memes available."
+          message = ["Memes Available\n"] << available_memes.join("\n")
+        # parse mention's message
+        else
+          meme_name, message_body = message_body.split(" ", 2) # assuming memename text to write
+          if available_memes.include? meme_name
+            line_one, line_two = message_body.split ","       # if string contains comma (,) then add another line
+            log "Generating MEME: #{meme_name} with #{line_one} #{line_two}"
+            meme = Meme.new meme_name.upcase
+            message = meme.generate(line_one, line_two)
+          else
+            log "Meme #{meme_name} not found!"
+            message = NO_MEME_IMAGE
+          end
+          log "Message #{message} Posted in Topic #{topic_id}"
+        end
+      rescue NoMethodError => boom
+        log "Error occurr: '#{boom.class} - #{boom.message}' message_body:'#{message_body}' | Topic:'#{topic_id}'"
+        message = "Need moar!"
+      rescue => boom
+        log "Unknown Error occurr: '#{boom.class} - #{boom.message}' message_body:'#{message_body}' | Topic:'#{topic_id}'"
+        message = "Wait...what?!"
+      end
+      
+      # now post the message
+      Convore::post_message topic_id, message      
+    }
 
-    Convore::post_message topic_id, message
+  end
+  
+  def available_memes
+    Meme::GENERATORS.collect { |g| g.first.downcase }.sort
+  end
+  
+  def log(message)
+    p "#{timestamp_it} - #{message}"
+  end
+
+  def timestamp_it
+    Time.now.strftime "%m-%d-%Y%l:%M%p %Ss" # M-D-Y H:S(AM/PM)
   end
   
 end
