@@ -25,28 +25,14 @@ class Convore
   class << self
     
     def unread
-      c = Curl::Easy.new("#{BASE_URL}/account/mentions.json") do |curl|
-        curl.headers["User-Agent"] = AGENT
-        curl.http_auth_types = :basic
-        curl.username = BOTNAME
-        curl.password = BOTPWD
-      end
-      c.perform
-      body = JSON c.body_str
-      # return int
+      body = JSON( get "#{BASE_URL}/account/mentions.json" )
+      # returns integer
       body["unread"]
     end
     
     # returns all mentions => [message, topic_id]
     def mentions
-      c = Curl::Easy.new("#{BASE_URL}/account/mentions.json") do |curl|
-        curl.headers["User-Agent"] = AGENT
-        curl.http_auth_types = :basic
-        curl.username = BOTNAME
-        curl.password = BOTPWD
-      end
-      c.perform
-      body = JSON c.body_str
+      body = JSON( get "#{BASE_URL}/account/mentions.json" )
       # return array of mentions
       body['mentions'].collect! { |m| [ m['message']['message'].gsub("@#{BOTNAME} ", ""), m['topic']['id'] ] }
     end
@@ -59,14 +45,32 @@ class Convore
     def post_message(topic_id, message)
       options = [
         Curl::PostField.content("message", message),
-        Curl::PostField.content(topic_id,  topic_id),
+        Curl::PostField.content("topic_id",  topic_id),
       ]
-      c = Curl::Easy.http_post("#{BASE_URL}/topics/#{topic_id}/messages/create.json", *options) do |curl|
+      
+      post("#{BASE_URL}/topics/#{topic_id}/messages/create.json", options)
+    end
+    
+    private
+    
+    def post(url, options)
+      c = Curl::Easy.http_post(url, *options) do |curl|
         curl.headers["User-Agent"] = AGENT
         curl.http_auth_types = :basic
         curl.username = BOTNAME
         curl.password = BOTPWD
       end
+    end
+    
+    def get(url)
+      c = Curl::Easy.new(url) do |curl|
+        curl.headers["User-Agent"] = AGENT
+        curl.http_auth_types = :basic
+        curl.username = BOTNAME
+        curl.password = BOTPWD
+      end
+      c.perform
+      c.body_str
     end
     
   end
@@ -75,7 +79,7 @@ end
 
 class Bot
   # pings Convore for latest messages
-  TIMER = 5
+  TIMER = 5 #secs
   
   def initialize
     p "I don't listen but when I do, I post on convore." # intro needs work
@@ -106,6 +110,7 @@ class Bot
         message = meme.generate line_one, line_two
       rescue Error => boom
         message = boom.message
+        p boom.inspect
       end      
     end
 
