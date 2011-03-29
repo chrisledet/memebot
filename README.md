@@ -27,5 +27,4 @@ Generate ORLY Owl meme
     
 TODOs
 ---
- - Support more than one mention when refreshing
- - Allow meme generation to be threaded
+ - Allow bot to join groups
