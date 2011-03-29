@@ -4,134 +4,146 @@
 # 
 # by Chris Ledet
 # 
-# 
 require 'rubygems'
 require 'curb'
 require 'json'
 require 'yaml'
 require 'meme'
 
-config = YAML::load(File.read('conf.yml'))
-
-GROUP_ID = 7750
-BOTNAME = config["username"]
-BOTPWD  = config["password"]
-
 class Convore
-
+  # wrapper client for Convore (https://convore.com/)
+  #
   BASE_URL = 'https://convore.com/api'
   AGENT = "MemeBot/Ruby"
-
-  class << self
-    
-    # returns int
-    def unread
-      body = JSON( get "#{BASE_URL}/account/mentions.json" )
-      body["unread"]
+  
+  def initialize(username, password)
+    @username = username
+    @password = password
+  end
+  
+  # returns number of new mentions
+  def unread
+    body = JSON( get "#{BASE_URL}/account/mentions.json" )
+    body["unread"]
+  end
+  
+  # returns all mentions EVER! => [message, topic_id]
+  def mentions
+    body = JSON( get "#{BASE_URL}/account/mentions.json" )
+    body['mentions'].collect do |m| 
+      { 
+        # strip out the @reference so we only the message
+        :message  => m['message']['message'].gsub("@#{BOTNAME} ", ""), 
+        :topic_id => m['topic']['id'] 
+      } 
     end
-    
-    # returns all mentions => [message, topic_id]
-    def mentions
-      body = JSON( get "#{BASE_URL}/account/mentions.json" )
-      # return array of mentions
-      body['mentions'].collect! { |m| [ m['message']['message'].gsub("@#{BOTNAME} ", ""), m['topic']['id'] ] }
+  end
+  
+  # returns array of mentions {:message, :topic_id}
+  def latest_mentions
+    unread_mentions = unread
+    unread_mentions > 0 ? mentions[0..unread_mentions-1] : []
+  end
+  
+  def post_message(topic_id, message)
+    options = [
+      Curl::PostField.content("message", message),
+      Curl::PostField.content("topic_id",  topic_id)
+    ]
+    post("#{BASE_URL}/topics/#{topic_id}/messages/create.json", options)
+  end
+  
+  protected
+  
+  def post(url, options)
+    c = Curl::Easy.http_post(url, *options) do |curl|
+      curl.headers["User-Agent"] = AGENT
+      curl.http_auth_types = :basic
+      curl.username = @username
+      curl.password = @password
     end
-    
-    # returns latest [message, topic_id]
-    def latest_mention
-      mentions.first
+  end
+  
+  def get(url)
+    c = Curl::Easy.new(url) do |curl|
+      curl.headers["User-Agent"] = AGENT
+      curl.http_auth_types = :basic
+      curl.username = @username
+      curl.password = @password
     end
-    
-    def post_message(topic_id, message)
-      options = 
-        [
-          Curl::PostField.content("message", message),
-          Curl::PostField.content("topic_id",  topic_id),
-        ]
-      
-      post("#{BASE_URL}/topics/#{topic_id}/messages/create.json", options)
-    end
-    
-    private
-    
-    def post(url, options)
-      c = Curl::Easy.http_post(url, *options) do |curl|
-        curl.headers["User-Agent"] = AGENT
-        curl.http_auth_types = :basic
-        curl.username = BOTNAME
-        curl.password = BOTPWD
-      end
-    end
-    
-    def get(url)
-      c = Curl::Easy.new(url) do |curl|
-        curl.headers["User-Agent"] = AGENT
-        curl.http_auth_types = :basic
-        curl.username = BOTNAME
-        curl.password = BOTPWD
-      end
-      c.perform
-      c.body_str
-    end
-    
+    c.perform
+    c.body_str
   end
   
 end
 
 class Bot
-  # pings Convore for latest messages
-  TIMER = 5 #secs
-  NO_MEME_IMAGE = "http://i.imgur.com/huDHF.jpg"
   
+  TIMER = 5 # secs...DUH!
+  NO_MEME_IMAGE = "http://i.imgur.com/huDHF.jpg"
+
   def initialize
-    log "Started. I don't listen but when I do, I post on convore." # intro needs work
-    while true
-      process
-      sleep TIMER
-    end
+    # exit if no config.yml file
+    abort("No config.yml file. Get to work!") unless File.exist? "config.yml"
+    # shall we?
+    config = YAML::load File.read("config.yml")
+    BOTNAME     = config["username"]
+    BOTPASSWD   = config["password"]
+    @convore = Convore.new BOTNAME, BOTPASSWD
+    start!
   end
   
   private
   
-  def process
-    
-    return if Convore::unread == 0
-    
-    message_body, topic_id  = Convore::latest_mention
-    log "Unread mentions found in Topic #{topic_id}"
-    
-    Thread.new {
-      begin
-        # if user types help, list all available memes
-        if "help".include? message_body
-          log "Listing all memes available."
-          message = ["Memes Available\n"] << available_memes.join("\n")
-        # parse mention's message
+  def start!
+    log "started. I don't listen but when I do, I listen to convore." # intro needs work?
+    while true
+      check_mentions
+      sleep TIMER
+    end
+  end
+  
+  def check_mentions
+    mentions = @convore.latest_mentions
+    mentions.each do |mention|
+      log "unread mention found"
+      message_body = mention[:message]
+      topic_id = mention[:topic_id]
+      Thread.new { 
+        @convore.post_message topic_id, generate_meme(message_body) 
+      }
+    end
+  end
+  
+  # Look away! I'm hideous...
+  # Seinfeld reference - http://www.youtube.com/watch?v=S-kIxa0fDM0
+  def generate_meme(message_body)
+    begin
+      # if user types help, list all available memes
+      if "help".include? message_body
+        log "Listing all memes available."
+        message = ["Memes Available\n"] << available_memes.join("\n")
+      # parse mention's message
+      else
+        meme_name, message_body = message_body.split(" ", 2) # assuming memename text to write
+        if available_memes.include? meme_name
+          line_one, line_two = message_body.split ","       # if string contains comma (,) then add another line
+          log "Generating MEME: #{meme_name} with #{line_one} #{line_two}"
+          meme = Meme.new meme_name.upcase
+          message = meme.generate(line_one, line_two)
         else
-          meme_name, message_body = message_body.split(" ", 2) # assuming memename text to write
-          if available_memes.include? meme_name
-            line_one, line_two = message_body.split ","       # if string contains comma (,) then add another line
-            log "Generating MEME: #{meme_name} with #{line_one} #{line_two}"
-            meme = Meme.new meme_name.upcase
-            message = meme.generate(line_one, line_two)
-          else
-            log "Meme #{meme_name} not found!"
-            message = NO_MEME_IMAGE
-          end
-          log "Message #{message} Posted in Topic #{topic_id}"
+          # meme not found
+          message = NO_MEME_IMAGE
         end
-      rescue NoMethodError => boom
-        log "Error occurr: '#{boom.class} - #{boom.message}' message_body:'#{message_body}' | Topic:'#{topic_id}'"
-        message = "Need moar!"
-      rescue => boom
-        log "Unknown Error occurr: '#{boom.class} - #{boom.message}' message_body:'#{message_body}' | Topic:'#{topic_id}'"
-        message = "Wait...what?!"
+        log "Posting #{message} in topic: #{topic_id}"
       end
-      
-      # now post the message
-      Convore::post_message topic_id, message      
-    }
-
+    rescue NoMethodError => boom
+      # incomplete query
+      message = "Need moar!"
+    rescue => boom
+      # what is this...I don't even...
+      message = "Wait...what?!"
+    end
   end
   
   def available_memes
@@ -149,5 +161,5 @@ class Bot
 end
 
 
-# start it up!
+# start it up! BOOM!
 Bot.new
