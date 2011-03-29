@@ -33,7 +33,7 @@ class Convore
     body['mentions'].collect do |m| 
       { 
         # strip out the @reference so we only the message
-        :message  => m['message']['message'].gsub("@#{BOTNAME} ", ""), 
+        :message  => m['message']['message'].gsub("@#{@username} ", ""), 
         :topic_id => m['topic']['id'] 
       } 
     end
@@ -87,16 +87,14 @@ class Bot
     abort("No config.yml file. Get to work!") unless File.exist? "config.yml"
     # shall we?
     config = YAML::load File.read("config.yml")
-    BOTNAME     = config["username"]
-    BOTPASSWD   = config["password"]
-    @convore = Convore.new BOTNAME, BOTPASSWD
+    @convore = Convore.new(config["username"], config["password"])
     start!
   end
   
   private
   
   def start!
-    log "started. I don't listen but when I do, I listen to convore." # intro needs work?
+    log "I don’t always listen, but when I do, I convore."
     while true
       check_mentions
       sleep TIMER
@@ -110,7 +108,9 @@ class Bot
       message_body = mention[:message]
       topic_id = mention[:topic_id]
       Thread.new { 
-        @convore.post_message topic_id, generate_meme(message_body) 
+        message = generate_meme message_body
+        @convore.post_message(topic_id, message)
+        log "Posting #{message} in topic: #{topic_id}"
       }
     end
   end
@@ -135,7 +135,6 @@ class Bot
           # meme not found
           message = NO_MEME_IMAGE
         end
-        log "Posting #{message} in topic: #{topic_id}"
       end
     rescue NoMethodError => boom
       # incomplete query
