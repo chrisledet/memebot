@@ -136,11 +136,12 @@ class Bot
           message = NO_MEME_IMAGE
         end
       end
-    rescue NoMethodError => boom
-      # incomplete query
-      message = "Need moar!"
+    rescue NoMethodError => boom # incomplete query
+      log "Error - #{boom}"
+      message = "Need moar!" 
     rescue => boom
       # what is this...I don't even...
+      log "Error - #{boom}"
       message = "Wait...what?!"
     end
   end
