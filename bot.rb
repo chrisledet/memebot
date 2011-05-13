@@ -1,5 +1,3 @@
-#!/bin/env ruby
-
 # Memebot for Convore
 # just mention @memebot in your topic and he'll respond
 # 
