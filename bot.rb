@@ -1,4 +1,5 @@
-# 
+#!/bin/env ruby
+
 # Memebot for Convore
 # just mention @memebot in your topic and he'll respond
 # 
@@ -12,7 +13,7 @@ require 'meme'
 
 class Convore
   # wrapper client for Convore (https://convore.com/)
-  #
+  
   BASE_URL = 'https://convore.com/api'
   AGENT = "MemeBot/Ruby"
   
@@ -27,7 +28,7 @@ class Convore
     body["unread"]
   end
   
-  # returns all mentions EVER! => [message, topic_id]
+  # returns ALL mentions! => [message, topic_id]
   def mentions
     body = JSON( get "#{BASE_URL}/account/mentions.json" )
     body['mentions'].collect do |m| 
@@ -53,7 +54,7 @@ class Convore
     post("#{BASE_URL}/topics/#{topic_id}/messages/create.json", options)
   end
   
-  protected
+  private
   
   def post(url, options)
     c = Curl::Easy.http_post(url, *options) do |curl|
@@ -87,7 +88,7 @@ class Bot
     abort("No config.yml file. Get to work!") unless File.exist? "config.yml"
     # shall we?
     config = YAML::load File.read("config.yml")
-    @convore = Convore.new(config["username"], config["password"])
+    @convore = Convore.new config["username"], config["password"]
     start!
   end
   
@@ -95,10 +96,10 @@ class Bot
   
   def start!
     log "I don’t always listen, but when I do, I convore."
-    while true
+    loop {
       check_mentions
-      sleep TIMER
-    end
+      sleep TIMER      
+    }
   end
   
   def check_mentions
