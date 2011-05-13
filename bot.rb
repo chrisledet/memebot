@@ -93,7 +93,8 @@ class Bot
   private
   
   def start!
-    log "I don’t always listen, but when I do, I convore."
+    log "I don't always listen, but when I do, I convore."
+    
     loop {
       check_mentions
       sleep TIMER      
